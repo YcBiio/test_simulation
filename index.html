@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Simulation Lotka-Volterra étendue – Optimisée</title>
+  <style>
+    /* Styles CSS */
+    body { font-family: sans-serif; margin: 0; padding: 10px; background: #f0f0f0; }
+    #controls { display: flex; flex-wrap: wrap; gap: 1em; align-items: center; margin-bottom: 1em; }
+    .slider-group { display: flex; flex-direction: column; }
+    .slider-group label { font-size: 0.9em; margin-bottom: 0.2em; }
+    .slider-group input[type=range] { width: 150px; }
+    canvas#simCanvas { border: 1px solid #ccc; background: #fff; display: block; }
+    #charts { display: flex; flex-wrap: wrap; gap: 2em; margin-top: 1em; }
+    .chart-container { width: 45%; min-width: 300px; height: 200px; }
+  </style>
+</head>
+<body>
+
+<div id="controls">
+  <!-- Sliders des paramètres de populations de base -->
+  <div class="slider-group">
+    <label for="preyInit">Proies initiales : <span id="preyInitLabel"></span></label>
+    <input type="range" id="preyInit" min="10" max="200" value="50">
+  </div>
+  <div class="slider-group">
+    <label for="predInit">Prédateurs initiaux : <span id="predInitLabel"></span></label>
+    <input type="range" id="predInit" min="1" max="100" value="10">
+  </div>
+  <div class="slider-group">
+    <label for="resource">Ressource / capacité (K) : <span id="resourceLabel"></span></label>
+    <input type="range" id="resource" min="50" max="500" value="200">
+  </div>
+  <div class="slider-group">
+    <label for="mutation">Taux de mutation : <span id="mutationLabel"></span></label>
+    <input type="range" id="mutation" min="0" max="100" value="10">
+  </div>
+  
+  <!-- Séparation pour les paramètres avancés -->
+  <hr style="width:100%; border: none; border-top: 1px solid #ccc;">
+  <h3 style="width:100%;">Paramètres de simulation avancés</h3>
+  
+  <div class="slider-group">
+    <label for="alpha0">Taux de reproduction intrinsèque (α0) : <span id="alpha0Label"></span></label>
+    <input type="range" id="alpha0" min="0.1" max="1.0" step="0.1" value="0.5">
+  </div>
+  <div class="slider-group">
+    <label for="beta0">Taux de prédation de base (β0) : <span id="beta0Label"></span></label>
+    <input type="range" id="beta0" min="0.01" max="0.1" step="0.005" value="0.02">
+  </div>
+  <div class="slider-group">
+    <label for="gamma0">Taux de mortalité intrinsèque (γ0) : <span id="gamma0Label"></span></label>
+    <input type="range" id="gamma0" min="0.1" max="1.0" step="0.1" value="0.4">
+  </div>
+  <div class="slider-group">
+    <label for="season_period">Période saisonnière : <span id="season_periodLabel"></span></label>
+    <input type="range" id="season_period" min="50" max="200" step="10" value="100">
+  </div>
+  <div class="slider-group">
+    <label for="season_amp">Amplitude saisonnière : <span id="season_ampLabel"></span></label>
+    <input type="range" id="season_amp" min="0" max="1" step="0.1" value="0.3">
+  </div>
+  <div class="slider-group">
+    <label for="disaster_interval">Intervalle entre catastrophes : <span id="disaster_intervalLabel"></span></label>
+    <input type="range" id="disaster_interval" min="100" max="1000" step="50" value="500">
+  </div>
+  <div class="slider-group">
+    <label for="disaster_impact">Impact de la catastrophe : <span id="disaster_impactLabel"></span></label>
+    <input type="range" id="disaster_impact" min="0" max="1" step="0.1" value="0.5">
+  </div>
+  <div class="slider-group">
+    <label for="predator_pressure_threshold">Seuil de pression prédateur (ratio) : <span id="predator_pressure_thresholdLabel"></span></label>
+    <input type="range" id="predator_pressure_threshold" min="0" max="1" step="0.1" value="0.5">
+  </div>
+  <div class="slider-group">
+    <label for="adaptation_strength">Force d'adaptation : <span id="adaptation_strengthLabel"></span></label>
+    <input type="range" id="adaptation_strength" min="0" max="1" step="0.1" value="0.5">
+  </div>
+  <div class="slider-group">
+    <label for="prey_scarcity_threshold">Seuil de rareté des proies : <span id="prey_scarcity_thresholdLabel"></span></label>
+    <input type="range" id="prey_scarcity_threshold" min="10" max="100" step="10" value="50">
+  </div>
+  <div class="slider-group">
+    <label for="alt_prey_factor">Facteur d'augmentation de mortalité (proies rares) : <span id="alt_prey_factorLabel"></span></label>
+    <input type="range" id="alt_prey_factor" min="0" max="1" step="0.1" value="0.5">
+  </div>
+  <div class="slider-group">
+    <label for="predConversion">Taux de conversion (prédation) : <span id="predConversionLabel"></span></label>
+    <input type="range" id="predConversion" min="0.001" max="0.01" step="0.001" value="0.005">
+  </div>
+  <div class="slider-group">
+    <label for="predImmigration">Taux d'immigration des prédateurs : <span id="predImmigrationLabel"></span></label>
+    <input type="range" id="predImmigration" min="0" max="0.05" step="0.001" value="0.005">
+  </div>
+  <div class="slider-group">
+    <label for="detection_range">Distance de détection (px) : <span id="detection_rangeLabel"></span></label>
+    <input type="range" id="detection_range" min="5" max="50" step="1" value="15">
+  </div>
+  
+  <button id="startBtn">Start</button>
+  <button id="pauseBtn">Pause</button>
+</div>
+
+<!-- Canvas pour la simulation visuelle -->
+<canvas id="simCanvas" width="400" height="300"></canvas>
+
+<!-- Conteneurs des graphiques Chart.js -->
+<div id="charts">
+  <div class="chart-container">
+    <canvas id="popChart"></canvas>
+  </div>
+  <div class="chart-container">
+    <canvas id="traitChart"></canvas>
+  </div>
+</div>
+
+<!-- Inclusion de Chart.js depuis CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  // ---------------------- Références DOM ----------------------
+  // Sliders de base
+  const preyInitSlider = document.getElementById('preyInit');
+  const predInitSlider = document.getElementById('predInit');
+  const resourceSlider = document.getElementById('resource');
+  const mutationSlider = document.getElementById('mutation');
+  const preyInitLabel = document.getElementById('preyInitLabel');
+  const predInitLabel = document.getElementById('predInitLabel');
+  const resourceLabel = document.getElementById('resourceLabel');
+  const mutationLabel = document.getElementById('mutationLabel');
+
+  // Sliders avancés
+  const alpha0Slider = document.getElementById('alpha0');
+  const beta0Slider = document.getElementById('beta0');
+  const gamma0Slider = document.getElementById('gamma0');
+  const seasonPeriodSlider = document.getElementById('season_period');
+  const seasonAmpSlider = document.getElementById('season_amp');
+  const disasterIntervalSlider = document.getElementById('disaster_interval');
+  const disasterImpactSlider = document.getElementById('disaster_impact');
+  const predatorPressureThresholdSlider = document.getElementById('predator_pressure_threshold');
+  const adaptationStrengthSlider = document.getElementById('adaptation_strength');
+  const preyScarcityThresholdSlider = document.getElementById('prey_scarcity_threshold');
+  const altPreyFactorSlider = document.getElementById('alt_prey_factor');
+  const predConversionSlider = document.getElementById('predConversion');
+  const predImmigrationSlider = document.getElementById('predImmigration');
+  const detectionRangeSlider = document.getElementById('detection_range');
+
+  const alpha0Label = document.getElementById('alpha0Label');
+  const beta0Label = document.getElementById('beta0Label');
+  const gamma0Label = document.getElementById('gamma0Label');
+  const seasonPeriodLabel = document.getElementById('season_periodLabel');
+  const seasonAmpLabel = document.getElementById('season_ampLabel');
+  const disasterIntervalLabel = document.getElementById('disaster_intervalLabel');
+  const disasterImpactLabel = document.getElementById('disaster_impactLabel');
+  const predatorPressureThresholdLabel = document.getElementById('predator_pressure_thresholdLabel');
+  const adaptationStrengthLabel = document.getElementById('adaptation_strengthLabel');
+  const preyScarcityThresholdLabel = document.getElementById('prey_scarcity_thresholdLabel');
+  const altPreyFactorLabel = document.getElementById('alt_prey_factorLabel');
+  const predConversionLabel = document.getElementById('predConversionLabel');
+  const predImmigrationLabel = document.getElementById('predImmigrationLabel');
+  const detectionRangeLabel = document.getElementById('detection_rangeLabel');
+
+  const startBtn = document.getElementById('startBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+
+  // Dimensions du canvas
+  const simCanvas = document.getElementById('simCanvas');
+  const ctx = simCanvas.getContext('2d');
+  const width = simCanvas.width;
+  const height = simCanvas.height;
+
+  // ---------------------- Mise à jour des labels ----------------------
+  function updateLabels() {
+    // Labels de base
+    preyInitLabel.textContent = preyInitSlider.value;
+    predInitLabel.textContent = predInitSlider.value;
+    resourceLabel.textContent = resourceSlider.value;
+    mutationLabel.textContent = (mutationSlider.value / 100).toFixed(2);
+    // Labels avancés
+    alpha0Label.textContent = alpha0Slider.value;
+    beta0Label.textContent = beta0Slider.value;
+    gamma0Label.textContent = gamma0Slider.value;
+    seasonPeriodLabel.textContent = seasonPeriodSlider.value;
+    seasonAmpLabel.textContent = seasonAmpSlider.value;
+    disasterIntervalLabel.textContent = disasterIntervalSlider.value;
+    disasterImpactLabel.textContent = disasterImpactSlider.value;
+    predatorPressureThresholdLabel.textContent = predatorPressureThresholdSlider.value;
+    adaptationStrengthLabel.textContent = adaptationStrengthSlider.value;
+    preyScarcityThresholdLabel.textContent = preyScarcityThresholdSlider.value;
+    altPreyFactorLabel.textContent = altPreyFactorSlider.value;
+    predConversionLabel.textContent = predConversionSlider.value;
+    predImmigrationLabel.textContent = predImmigrationSlider.value;
+    detectionRangeLabel.textContent = detectionRangeSlider.value;
+  }
+  updateLabels();
+
+  // Mise à jour des labels sur événement
+  [preyInitSlider, predInitSlider, resourceSlider, mutationSlider,
+   alpha0Slider, beta0Slider, gamma0Slider, seasonPeriodSlider, seasonAmpSlider,
+   disasterIntervalSlider, disasterImpactSlider, predatorPressureThresholdSlider,
+   adaptationStrengthSlider, preyScarcityThresholdSlider, altPreyFactorSlider,
+   predConversionSlider, predImmigrationSlider, detectionRangeSlider].forEach(slider => {
+     slider.oninput = updateLabels;
+   });
+
+  // ---------------------- Graphiques Chart.js ----------------------
+  const popChartCtx = document.getElementById('popChart').getContext('2d');
+  const traitChartCtx = document.getElementById('traitChart').getContext('2d');
+  const popChart = new Chart(popChartCtx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [
+        { label: 'Proies', data: [], borderColor: 'green', backgroundColor: 'transparent' },
+        { label: 'Prédateurs', data: [], borderColor: 'red', backgroundColor: 'transparent' }
+      ]
+    },
+    options: {
+      animation: false,
+      scales: {
+        x: { display: true, title: { display: true, text: 'Temps' } },
+        y: { display: true, title: { display: true, text: 'Population' } }
+      }
+    }
+  });
+  const traitChart = new Chart(traitChartCtx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [
+        { label: 'Trait moyen Proies', data: [], borderColor: 'olive', backgroundColor: 'transparent' },
+        { label: 'Trait moyen Prédateurs', data: [], borderColor: 'orange', backgroundColor: 'transparent' }
+      ]
+    },
+    options: {
+      animation: false,
+      scales: {
+        x: { display: true, title: { display: true, text: 'Temps' } },
+        y: { display: true, title: { display: true, text: 'Valeur du trait' } }
+      }
+    }
+  });
+
+  // ---------------------- Variables de simulation ----------------------
+  let preyList = [];       // liste des proies
+  let predatorList = [];   // liste des prédateurs
+  let time = 0;            // temps simulé
+  let step = 0;            // compteur d'itérations
+  let running = false;
+
+  // ---------------------- Classes pour représenter les individus ----------------------
+  class Prey {
+    constructor(x, y, trait) {
+      this.x = x;
+      this.y = y;
+      this.trait = trait;  // par exemple, vitesse d’évasion
+      this.alive = true;
+    }
+  }
+  class Predator {
+    constructor(x, y, trait) {
+      this.x = x;
+      this.y = y;
+      this.trait = trait;  // par exemple, vitesse de chasse
+      this.alive = true;
+      this.energy = 3;     // énergie initiale augmentée pour une meilleure survie
+    }
+  }
+
+  // ---------------------- Initialisation de la simulation ----------------------
+  function initSimulation() {
+    preyList = [];
+    predatorList = [];
+    time = 0;
+    step = 0;
+    const preyInitial = parseInt(preyInitSlider.value);
+    const predatorInitial = parseInt(predInitSlider.value);
+    const carryingCapacity = parseInt(resourceSlider.value);
+    for (let i = 0; i < preyInitial; i++) {
+      preyList.push(new Prey(Math.random() * width, Math.random() * height, 1 + (Math.random() * 0.2 - 0.1)));
+    }
+    for (let j = 0; j < predatorInitial; j++) {
+      predatorList.push(new Predator(Math.random() * width, Math.random() * height, 1 + (Math.random() * 0.2 - 0.1)));
+    }
+    popChart.data.labels = [];
+    popChart.data.datasets[0].data = [];
+    popChart.data.datasets[1].data = [];
+    traitChart.data.labels = [];
+    traitChart.data.datasets[0].data = [];
+    traitChart.data.datasets[1].data = [];
+    popChart.update();
+    traitChart.update();
+  }
+
+  // ---------------------- Fonction principale de mise à jour ----------------------
+  function updateSimulation(dt) {
+    const alpha0_val = parseFloat(alpha0Slider.value);
+    const beta0_val = parseFloat(beta0Slider.value);
+    const gamma0_val = parseFloat(gamma0Slider.value);
+    const season_period_val = parseFloat(seasonPeriodSlider.value);
+    const season_amp_val = parseFloat(seasonAmpSlider.value);
+    const disaster_interval_val = parseFloat(disasterIntervalSlider.value);
+    const disaster_impact_val = parseFloat(disasterImpactSlider.value);
+    const predator_pressure_threshold_val = parseFloat(predatorPressureThresholdSlider.value);
+    const adaptation_strength_val = parseFloat(adaptationStrengthSlider.value);
+    const prey_scarcity_threshold_val = parseFloat(preyScarcityThresholdSlider.value);
+    const alt_prey_factor_val = parseFloat(altPreyFactorSlider.value);
+    const predConversion_val = parseFloat(predConversionSlider.value);
+    const predImmigrationRate = parseFloat(predImmigrationSlider.value);
+    const detectionRange = parseInt(detectionRangeSlider.value);
+
+    // Variation saisonnière
+    let season_factor = 1 + season_amp_val * Math.sin(2 * Math.PI * time / season_period_val);
+    let alpha = alpha0_val * season_factor;
+    let gamma = gamma0_val / season_factor;
+
+    // Adaptation en cas de rareté des proies
+    let effectivePredDeathProb = gamma;
+    if (preyList.length < prey_scarcity_threshold_val) {
+      effectivePredDeathProb = gamma * (1 + alt_prey_factor_val);
+    }
+    
+    // Reproduction des proies
+    const currentPreyCount = preyList.length;
+    const carryingCapacity = parseInt(resourceSlider.value);
+    let preyBirthProb = alpha * (1 - currentPreyCount / carryingCapacity);
+    preyBirthProb = Math.max(preyBirthProb, 0);
+    const newPrey = [];
+    for (let prey of preyList) {
+      if (Math.random() < preyBirthProb) {
+        newPrey.push(new Prey(prey.x, prey.y, mutateTrait(prey.trait)));
+      }
+    }
+    newPrey.forEach(p => p.alive = true);
+    preyList.push(...newPrey);
+    
+    // Déplacement aléatoire des proies et prédateurs
+    preyList.forEach(prey => {
+      prey.x += (Math.random() - 0.5) * 2;
+      prey.y += (Math.random() - 0.5) * 2;
+      prey.x = Math.max(0, Math.min(width, prey.x));
+      prey.y = Math.max(0, Math.min(height, prey.y));
+    });
+    predatorList.forEach(pred => {
+      pred.x += (Math.random() - 0.5) * 3;
+      pred.y += (Math.random() - 0.5) * 3;
+      pred.x = Math.max(0, Math.min(width, pred.x));
+      pred.y = Math.max(0, Math.min(height, pred.y));
+    });
+    
+    // Interaction prédation avec détection élargie
+    for (let pred of predatorList) {
+      let targetPrey = preyList.find(prey => prey.alive && distance(pred, prey) < detectionRange &&
+                                Math.random() < catchProbability(pred, prey));
+      if (targetPrey) {
+        targetPrey.alive = false;
+        pred.energy += 1;
+        if (Math.random() < predConversion_val) {
+          predatorList.push(new Predator(pred.x, pred.y, mutateTrait(pred.trait)));
+        }
+      } else {
+        // Consommation énergétique réduite pour une meilleure survie
+        pred.energy -= 0.005;
+      }
+    }
+    preyList = preyList.filter(p => p.alive);
+    
+    // Mortalité naturelle des prédateurs basée uniquement sur l'énergie
+    predatorList = predatorList.filter(pred => pred.energy > 0);
+    
+    // Immigration probabiliste des prédateurs
+    if (Math.random() < predImmigrationRate) {
+      predatorList.push(new Predator(Math.random() * width, Math.random() * height, 1));
+    }
+    
+    // Immigration des proies en cas d'extinction
+    if (preyList.length === 0) {
+      for (let i = 0; i < 10; i++) {
+        preyList.push(new Prey(Math.random() * width, Math.random() * height, 1));
+      }
+    }
+    
+    time += dt;
+    step++;
+  }
+
+  // ---------------------- Fonctions utilitaires ----------------------
+  function distance(a, b) {
+    const dx = a.x - b.x, dy = a.y - b.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+  function catchProbability(pred, prey) {
+    const diff = pred.trait - prey.trait;
+    const sum = pred.trait + prey.trait;
+    let baseProb = 0.5 * (1 + diff / sum);
+    return Math.max(0, Math.min(baseProb, 1));
+  }
+  function mutateTrait(trait) {
+    const mutationRate = parseInt(mutationSlider.value) / 100;
+    const mutationMagnitude = (Math.random() * 2 - 1) * mutationRate;
+    return Math.max(trait + mutationMagnitude, 0);
+  }
+
+  // ---------------------- Rendu visuel ----------------------
+  function drawSimulation() {
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = "green";
+    preyList.forEach(prey => {
+      ctx.beginPath();
+      ctx.arc(prey.x, prey.y, 3, 0, 2 * Math.PI);
+      ctx.fill();
+    });
+    ctx.fillStyle = "red";
+    predatorList.forEach(pred => {
+      ctx.fillRect(pred.x - 3, pred.y - 3, 6, 6);
+    });
+  }
+
+  // ---------------------- Mise à jour des graphiques ----------------------
+  function updateCharts() {
+    popChart.data.labels.push(time.toFixed(1));
+    popChart.data.datasets[0].data.push(preyList.length);
+    popChart.data.datasets[1].data.push(predatorList.length);
+    const avgPreyTrait = preyList.length ? preyList.reduce((sum, p) => sum + p.trait, 0) / preyList.length : 0;
+    const avgPredTrait = predatorList.length ? predatorList.reduce((sum, p) => sum + p.trait, 0) / predatorList.length : 0;
+    traitChart.data.labels.push(time.toFixed(1));
+    traitChart.data.datasets[0].data.push(avgPreyTrait);
+    traitChart.data.datasets[1].data.push(avgPredTrait);
+    if (popChart.data.labels.length > 100) {
+      popChart.data.labels.shift();
+      popChart.data.datasets[0].data.shift();
+      popChart.data.datasets[1].data.shift();
+    }
+    if (traitChart.data.labels.length > 100) {
+      traitChart.data.labels.shift();
+      traitChart.data.datasets[0].data.shift();
+      traitChart.data.datasets[1].data.shift();
+    }
+    popChart.update();
+    traitChart.update();
+  }
+
+  // ---------------------- Boucle d'animation ----------------------
+  function animate() {
+    if (!running) return;
+    const dt = 1;
+    updateSimulation(dt);
+    drawSimulation();
+    if (step % 5 === 0) {
+      updateCharts();
+    }
+    requestAnimationFrame(animate);
+  }
+
+  // ---------------------- Contrôle Start/Pause ----------------------
+  startBtn.onclick = () => {
+    initSimulation();
+    running = true;
+    requestAnimationFrame(animate);
+  };
+  pauseBtn.onclick = () => {
+    running = !running;
+    if (running) requestAnimationFrame(animate);
+  };
+</script>
+</body>
+</html>
